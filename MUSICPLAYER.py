@@ -8,7 +8,7 @@ from tinytag import TinyTag #muisc tag(title,artist,...)
 from tkinter import filedialog #open file
 from tktooltip import ToolTip #button's tips
 from PIL import Image, ImageTk, ImageFilter, ImageEnhance #background and get hex_color
-import pygame, time, random, lyricsgenius, threading
+import os, pygame, time, random, lyricsgenius, threading
 
 set_appearance_mode("dark")
 set_default_color_theme("dark-blue")
@@ -18,13 +18,11 @@ class GUI():
     def __init__(self):
 
         self.mainframe = CTkFrame(window, width=600, height = 700, fg_color = "#000000")
-        self.searchfram = CTkFrame(window, width=450, height = 100, fg_color = "#121212")
+        self.searchfram = CTkFrame(window, width=450, height = 100)
         self.playlistfram = CTkScrollableFrame(window, width=425, height = 629, fg_color="#121212")
         self.info_lyricsframe = CTkScrollableFrame(window, width=450, height=700, fg_color="#121212")
         self.buttomframe = CTkFrame(window, height=100, corner_radius=1, fg_color="#000000")
         
-        self.sortedbyLabel = CTkLabel(self.playlistfram, text = "SORTED BY DEFULT", fg_color="transparent", width=500)
-
         self.soundButton = CTkButton(self.buttomframe, image= volumeupImage, text = "", width = 10, fg_color='transparent', command=self.mute)
         self.volumeSlider = CTkSlider(self.buttomframe, from_=0, to=10, width=100, command=self.soundvalue)
         self.volumeSlider.set(10)
@@ -43,8 +41,7 @@ class GUI():
         self.previousButton = CTkButton(self.buttomframe, image=beforImage, width = 10, text="", fg_color='transparent', command=self.previoustrack)
 
         self.queueButton = CTkButton(self.buttomframe, image=queuedisableImage, width = 2, text="", fg_color='transparent', command = self.showqueue)
-        self.clearqueueButton = CTkButton(self.info_lyricsframe, text="Clear Queue", command= self.clearqueue, width=500)
-        self.sortButton = CTkButton(self.searchfram, image=sortDisableImage, width = 10, text="", fg_color='transparent', command= self.sortplaylist)
+        self.sortButton = CTkButton(self.searchfram, image=sortDisableImage, width = 10, text="", fg_color='transparent', command=lambda: threading.Thread(target=self.sortplaylist).start())
         self.shuffleButton = CTkButton(self.buttomframe, image=shuffleDisableImage, width = 10, text="", fg_color='transparent', command=self.shuffle)
         self.loopButton = CTkButton(self.buttomframe, image=loopDisableImage, width = 10, text="", fg_color='transparent', command=self.loop)
         self.lyricsButoon = CTkButton(self.buttomframe, image=lyricsDisableImage, width = 10, text="", fg_color='transparent', command=lambda :threading.Thread(target=self.getlyricistrack).start())
@@ -81,10 +78,10 @@ class GUI():
         self.newpathButton.grid(row=0, column=2)
 
 
-        #self.buttomframe.rowconfigure(1, weight=0)
-        #self.buttomframe.columnconfigure(0, weight=1)
-        #self.buttomframe.columnconfigure(1, weight=1)
-        #self.buttomframe.columnconfigure(2, weight=1)
+        self.buttomframe.rowconfigure(1, weight=0)
+        self.buttomframe.columnconfigure(0, weight=1)
+        self.buttomframe.columnconfigure(1, weight=1)
+        self.buttomframe.columnconfigure(2, weight=1)
 
         self.musiccurrenttimeLabel.grid(row=0, column=0, padx = 8)
         self.timeSlider.grid(row=0, column=1)
@@ -157,32 +154,32 @@ class GUI():
 
         global index, playstatus
         
-        file_paths = filedialog.askopenfilenames(title="CHOOSE SONGS", filetypes=[("MP3 files", "*.mp3")])
-
-        if file_paths:
-            self.songs = []
-            self.songs.extend(file_paths)
+        path = filedialog.askdirectory(title = "CHOOSE SONGS")
+        
+        if path:
+            os.chdir(path)
+            self.songs = (os.listdir(path))
             self.defultsongssort = self.songs
+            self.tracks = [TinyTag.get(song) for song in self.songs]
             self.sortedplaylist = [(TinyTag.get(song).title, TinyTag.get(song).artist, TinyTag.get(song).album) for song in self.songs]
             #for choose an new path
             if playliststatus:
                     self.playlistdestroy()
                     mixer.music.unload()
-
+                    self.timeSlider.set(0)
             if lyricsstatus:
                     self.textarea.destroy()
                     self.getlyricistrack()
-
             if informationstatus:
                     for label in self.infolistlabel:
                         label.pack_forget()
                     for tag in self.taglist:
                         tag.pack_forget()
                     self.information()
-
-            self.clearqueue() if queuestatus else None
-            self.queuedestroy() if queueshowstatus else None
-
+            if queuestatus:
+                self.clearqueue()
+            if queueshowstatus:
+                self.queuedestroy()
             if playstatus:
                 playstatus = False
                 self.timeSlider.set(0)
@@ -192,19 +189,19 @@ class GUI():
             index = 0 
             self.playlist()
             self.tracks_name_artist_cover_time()
+    
         else:
             return
         
     def tracks_name_artist_cover_time(self):
-
-        self.tracks = [TinyTag.get(song) for song in self.songs]
+        
         if len(self.tracks[index].title + "\n" + self.tracks[index].artist) >= 45:
             self.font = CTkFont(family = 'times',size=25)
         else:
             self.font = CTkFont(family = 'times',size=40)
         
         self.nameLabel.configure(text = self.tracks[index].title + "\n" + self.tracks[index].artist, font = self.font)
-        self.musiccurrenttimeLabel.configure(text = "00:00")
+
         self.coveredLabel.configure(image = self.resizemusiccover(445,445,1,0,index))
         self.bgimageLabel.configure(image = self.resizemusiccover(750,890,0.7,110,index))
         self.get_time()
@@ -212,10 +209,10 @@ class GUI():
     def resizemusiccover(self, width, height, contrast, blur, index):
 
         self.file_path = "C://Users//aryan//OneDrive//Desktop//project//music player//cover picture//cover.png"
-
+       
         self.metadata=audio_metadata.load(self.songs[index])
-        self.covers = []
-        if self.metadata.pictures[0].data == None:
+            
+        if self.metadata == None:
             self.trackbuttons[index].configure(image = defultcoverImage)
         else:
             self.artwork = self.metadata.pictures[0].data 
@@ -226,7 +223,7 @@ class GUI():
         contrast_img = ImageEnhance.Contrast(resized_img).enhance(contrast)
         blurred_img = contrast_img.filter(ImageFilter.BoxBlur(blur))
         self.newimg = ImageTk.PhotoImage(blurred_img)
-        
+
         return self.newimg
     
     def upnextlabeldestroy(self):
@@ -259,42 +256,62 @@ class GUI():
         self.sortButton.configure(image = sortEnableImage)
         songselectbeforsort = self.songs[index]
         self.playlistdestroy()
+        sortedby = ""
+        if sortbyArtiststatus:
+            #sort by artist
+            sortedby = "ARTIST"
+            self.sortedplaylist.sort(key = lambda item: item[1])
+            # the first loop is for traversing through the sortedplaylist(playlist for sorting) and the secon loop is for traversing through the songs(path of songs) this is same for 3 conditional of sorting
+            for sortedsong in self.sortedplaylist:
+                for song in self.songs:
+                    track = TinyTag.get(song)
+                    if (track.artist) in sortedsong and song not in sortedsongs:
+                        sortedsongs.append(song)
+                        
+            sortbyAlbumstatus = True
+            sortbyArtiststatus = False
+        
+        elif sortbyAlbumstatus:
+            sortedby = "ALBUM"
+            self.sortedplaylist.sort(key = lambda item: item[2])
+            for sortedsong in self.sortedplaylist:
+                for song in self.songs:
+                    track = TinyTag.get(song)
+                    if (track.title) in sortedsong and song not in sortedsongs:
+                        sortedsongs.append(song)
 
-        if sortbyDefultstatus:
+            sortbyTitlestatus = True
+            sortbyAlbumstatus = False
+
+        elif sortbyTitlestatus:
+            sortedby = "TITLE"
+            self.sortedplaylist.sort(key = lambda item: item[0])
+            # the first loop is for traversing through the sortedplaylist(playlist for sorting) and the secon loop is for traversing through the songs(path of songs) this is same for 3 conditional of sorting
+            for sortedsong in self.sortedplaylist:
+                for song in self.songs:
+                    track = TinyTag.get(song)
+                    if (track.artist) in sortedsong and song not in sortedsongs:
+                        sortedsongs.append(song)
+                    
+            sortbyDefultstatus = True
+            sortbyTitlestatus = False
+
+        elif sortbyDefultstatus:
             sortedby = "DEFULT"
             sortedsongs = self.defultsongssort
             self.sortButton.configure(image = sortDisableImage)
             sortbyArtiststatus = True
             sortbyDefultstatus = False
-        else:
-            if sortbyArtiststatus:
-                sortedby = "ARTIST"
-                self.sortedplaylist.sort(key = lambda item: item[1])
-                sortbyAlbumstatus = True
-                sortbyArtiststatus = False
-            elif sortbyAlbumstatus:
-                sortedby = "ALBUM"
-                self.sortedplaylist.sort(key = lambda item: item[2])
-                sortbyTitlestatus = True
-                sortbyAlbumstatus = False
-            elif sortbyTitlestatus:
-                sortedby = "TITLE"
-                self.sortedplaylist.sort(key = lambda item: item[0])
-                sortbyDefultstatus = True
-                sortbyTitlestatus = False
-
-            for sortedsong in self.sortedplaylist:
-                    for song in self.songs:
-                        track = TinyTag.get(song)
-                        if (track.artist if sortbyArtiststatus else track.title if sortbyTitlestatus else track.album) in sortedsong and song not in sortedsongs:
-                            sortedsongs.append(song)
 
         self.songs = sortedsongs
         for sortindex in range(len(sortedsongs)):
             if songselectbeforsort == sortedsongs[sortindex]:
                 self.indexaftersort = sortindex
         index = self.indexaftersort
-        self.sortedbyLabel.configure(text = f"SORTED BY {sortedby}")
+
+        sortedbyLabel = Label(self.searchfram, text = f"SORED BY\n{sortedby}")
+        sortedbyLabel.place(x = 480, y = 25)
+        window.after(2000, sortedbyLabel.place_forget)
         self.playlist()
         self.playlistupdate(index)
 
@@ -310,9 +327,10 @@ class GUI():
 
         for i, button in enumerate(self.trackbuttons):
             if i == index:
-                button.configure(fg_color = "#1f538d")
+                button.configure(fg_color = "#5a5a5a")
             else:
                 button.configure(fg_color = "transparent")
+
 
     def playbyyplaylist(self, i):
 
@@ -320,7 +338,7 @@ class GUI():
         playstatus = True
         switchtrack = True
         index = i
-        
+
         self.play()
         self.playlistupdate(int(index))
 
@@ -332,22 +350,24 @@ class GUI():
             playliststatus = True
             self.trackbuttons =[]
             font = CTkFont(weight = "bold")
-            self.sortedbyLabel.pack()
-            for song in range(len(self.songs)):
-                tracks = TinyTag.get(self.songs[song])
-                tracks_title = tracks.title
-                tracks_artist = tracks.artist
-                finaltext = f"{tracks_title}\n{tracks_artist}"
 
-                trackbutton = CTkButton(self.playlistfram, command = lambda x = song: self.playbyyplaylist(x) ,text =  finaltext, font = font ,width=500, fg_color='transparent', border_width=0, image= self.resizemusiccover(100,100,1,0,song), compound=LEFT, anchor=EW, corner_radius=2)
-                trackbutton.bind("<Button-3>", lambda event, x = song: self.addtoqueue(x))
-                ToolTip(trackbutton, msg = "Right Click To Add in Queue",delay = 0.01, follow=True, refresh=0.01, x_offset= -20, y_offset= -50)
-                trackbutton._image_label.grid(column = 0, sticky=E, padx = 2)
-                trackbutton.pack(side = TOP)
+            for song in range(len(self.songs)):
+                tracks_title = self.tracks[song].title
+                tracks_artist = self.tracks[song].artist
+
+                max_length = len(tracks_title)
+                formatted_tracktitle = tracks_title.ljust(max_length)
+                finaltext = f"{formatted_tracktitle}\n{tracks_artist}"
+
+                self.trackbutton = CTkButton(self.playlistfram, command = lambda x = song: self.playbyyplaylist(x) ,text =  finaltext, font = font ,width=500, fg_color='transparent', border_width=0, image= self.resizemusiccover(100,100,1,0,song), compound=LEFT, anchor=EW, corner_radius=2)
+                self.trackbutton.bind("<Button-3>", lambda event, x = song: self.addtoqueue(x))
+                ToolTip(self.trackbutton, msg = "Right Click To Add in Queue",delay = 0.01, follow=True, refresh=0.01, x_offset= -20, y_offset= -50)
+                self.trackbutton._image_label.grid(column = 0, sticky=E)
+                self.trackbutton.pack(side = TOP)
                 
-                self.trackbuttons.append(trackbutton)
+                self.trackbuttons.append(self.trackbutton)
         
-            self.trackbuttons[0].configure(fg_color = "#1f538d")
+        self.trackbuttons[0].configure(fg_color = "#5a5a5a")
 
     def addtoqueue(self, track):
 
@@ -360,20 +380,16 @@ class GUI():
         if track not in queuetracks:
             queuetracks.append(track)
         
-            font = CTkFont(weight = "bold")
-            queuetrackButton= CTkButton(self.info_lyricsframe, command = lambda x = track: self.playbyqueue(x), text= self.trackbuttons[track].cget("text"), font = font, image= self.resizemusiccover(100,100,1,0,track), width=500, fg_color='transparent', compound=LEFT, anchor=EW, corner_radius=2)
-            queuetrackButton.bind("<Button-3>", lambda event, x = track: self.removefromqueue(x))
-            queuebuttonslit.append(queuetrackButton)
-            if queueshowstatus:
-                queuetrackButton.pack()
-
+        if queueshowstatus:
+            self.trackbuttons[track].pack(side = TOP)
+    
     def removefromqueue(self, track):
 
         global queuestatus
         index = track
 
-        queuebuttonslit[queuetracks.index(index)].pack_forget()
-        queuebuttonslit.pop(queuetracks.index(index))
+        self.queuebuttonslit[queuetracks.index(index)].pack_forget()
+        self.queuebuttonslit.pop(queuetracks.index(index))
         queuetracks.remove(index)
 
         if len(queuetracks) == 0:
@@ -382,14 +398,12 @@ class GUI():
 
     def clearqueue(self):
         
-        global queuestatus, index
+        global queuestatus
         queuestatus = False
-        index = self.beforqueuedindex
+
         queuetracks.clear()
-        for button in queuebuttonslit:
-            button.pack_forget()
-        queuebuttonslit.clear()
-    
+        self.queuedestroy()
+
     def playbyqueue(self, track):
 
         global index, playstatus, switchtrack, queuetracks, queuestatus
@@ -400,14 +414,13 @@ class GUI():
         self.play()
         self.playlistupdate(int(index))
         
-        queuebuttonslit[queuetracks.index(index)].pack_forget()
-        queuebuttonslit.pop(queuetracks.index(index))
+        self.queuebuttonslit[queuetracks.index(index)].pack_forget()
+        self.queuebuttonslit.pop(queuetracks.index(index))
         queuetracks.remove(index)
 
         if len(queuetracks) == 0:
             queuestatus = False
-            #index = self.beforqueuedindex
-            self.clearqueue()
+            self.queuedestroy()
         
     def queuedestroy(self, event = None):
         
@@ -416,8 +429,8 @@ class GUI():
         if queueshowstatus:
             queueshowstatus = False
             
-            self.clearqueueButton.pack_forget()
-            for button in queuebuttonslit:
+            self.clearqueueButton.destroy()
+            for button in self.queuebuttonslit:
                 button.pack_forget()
             
             self.queueButton.configure(image = queuedisableImage, command = self.showqueue)
@@ -428,44 +441,34 @@ class GUI():
         global queueshowstatus
         queueshowstatus = True
 
-        self.informationframedestroy() if informationstatus else None
-        self.lyricsframedestroy() if lyricsstatus else None
+        self.queuebuttonslit = []
+        showlist = zip(queuetracks, self.trackbuttons)
 
+        self.clearqueueButton = CTkButton(self.info_lyricsframe, text="Clear Queue", command= self.clearqueue, width=500)
         self.clearqueueButton.pack(side = TOP)
 
-        for button in queuebuttonslit:
-            button.pack()
+        font = CTkFont(weight = "bold")
+        for button in dict(showlist):
+            queueButton = CTkButton(self.info_lyricsframe, command = lambda x = button: self.playbyqueue(x), text= self.trackbuttons[button].cget("text"), font = font, image= self.resizemusiccover(100,100,1,0,button), width=500, fg_color='transparent', compound=LEFT, anchor=EW, corner_radius=2)
+            queueButton.bind("<Button-3>", lambda event, x = button: self.removefromqueue(x))
+            queueButton.pack()
+            self.queuebuttonslit.append(queueButton)
 
         self.queueButton.configure(image = queueenableImage, command = self.queuedestroy)
         self.keyboardshortcut()
         
     def play(self, event = None):
         
-        global playstatus, index, lyricsstatus, informationstatus, switchtrack, pausestatus
-        index = -1 if index == -1 else index
-        pausestatus = False if pausestatus else None
-        
-        mixer.music.stop() if mixer.music.get_busy() else None
+        global playstatus, index, lyricsstatus, informationstatus
 
+        index = -1 if index == -1 else index
+        
         mixer.music.load(self.songs[index]) if switchtrack or not playstatus else None
 
         if playstatus:
             self.timeSlider.set(0)
             if switchtrack:
                 self.tracks_name_artist_cover_time()
-                if lyricsstatus:
-                    lyricsstatus = False
-                    self.textarea.destroy()
-                    threading.Thread(target=self.getlyricistrack).start()
-                if informationstatus:
-                    informationstatus = False
-                    for label in self.infolistlabel:
-                        label.pack_forget()
-                    for tag in self.taglist:
-                        tag.pack_forget()
-                    self.information()
-                    
-                switchtrack = False
 
         mixer.music.play(start =  self.timeSlider.get() if self.timeSlider.get() != 0 else 0)
         # play for firs time
@@ -473,6 +476,17 @@ class GUI():
 
         if upnextstatus:
             self.upnextlabeldestroy()
+        if lyricsstatus:
+            lyricsstatus = False
+            self.textarea.destroy()
+            threading.Thread(target=self.getlyricistrack).start()
+        if informationstatus:
+            informationstatus = False
+            for label in self.infolistlabel:
+                label.pack_forget()
+            for tag in self.taglist:
+                tag.pack_forget()
+            self.information()
 
         self.keyboardshortcut()
         self.playButton.configure(image = pauseImage, command = self.pause)
@@ -501,20 +515,23 @@ class GUI():
     
     def nexttrack(self, event = None):
 
-        global index, upnextstatus, playstatus, lastshuffleindex, switchtrack, queuestatus
+        global index, pausestatus, upnextstatus, playstatus, lastshuffleindex, switchtrack, queuestatus
         playstatus = True
+        pausestatus = False
         switchtrack = True
 
+        mixer.music.stop()
+
         if queuestatus:
+            index = queuetracks[0]
+            #queuetracks.remove(index)
+            queuetracks.pop(0)
+            if queueshowstatus:   
+               self.queuebuttonslit[0].pack_forget()
+               self.queuebuttonslit.pop(0)
             if len(queuetracks) == 0:
                 queuestatus = False
-                index = self.beforqueuedindex + 1
-            else:
-                index = queuetracks[0]
-                queuetracks.pop(0)
-                if queueshowstatus:   
-                    queuebuttonslit[0].pack_forget()
-                queuebuttonslit.pop(0)
+                self.queuedestroy()
         else:
             if not shufflestatus:
                 index += 1 
@@ -529,9 +546,12 @@ class GUI():
 
     def previoustrack(self, event = None):
          
-        global index, upnextstatus, playstatus, lastshuffleindex, switchtrack
+        global index, pausestatus, upnextstatus, playstatus, lastshuffleindex, switchtrack
         playstatus = True
+        pausestatus = False
         switchtrack = True
+
+        mixer.music.stop()
 
         if queuestatus:
             index = self.beforqueuedindex
@@ -622,6 +642,7 @@ class GUI():
             for button in self.trackbuttons:
                 button.pack_forget()
                 button.pack()
+        
 
     def soundvalue(self, event = None):
         
@@ -654,29 +675,39 @@ class GUI():
     
     def setposofduration(self, event = None):
 
-        def set_unpuase():
-            mixer.music.set_pos(self.timeSlider.get())
-            mixer.music.unpause() if not pausestatus and not mixer.music.get_busy() else None
-
-        if mixer.music.get_busy() or pausestatus: 
-            self.timeSlider.bind("<B1-Motion>", mixer.music.pause())
-            self.timeSlider.bind("<ButtonRelease-1>", lambda x:set_unpuase())
-
+        if mixer.music.get_busy() or pausestatus:
+            self.timeSlider.bind("<Button-1>", lambda x: mixer.music.pause())
+            self.timeSlider.bind("<B1-Motion>", lambda x: mixer.music.set_pos(self.timeSlider.get()))
+            self.timeSlider.bind("<ButtonRelease-1>", lambda x: mixer.music.unpause() if not pausestatus else None + print("Aa"))
+        
         self.musiccurrenttimeLabel.configure(text=time.strftime("%M:%S", time.gmtime(self.timeSlider.get())))
 
     def get_time(self):
-       #get music duration
+        #get music duration
         self.song_mut = MP3(self.songs[index])
         song_length = self.song_mut.info.length
         self.timeSlider.configure(to = int(song_length))
-        self.song_length_convert = time.strftime("%M:%S", time.gmtime(song_length))
-        self.musicdurationLabel.configure(text = self.song_length_convert)
+        #when for first time music is not playing the current time must be 0
+        if not playstatus:
+            self.current_time = 0
         #update music current time
         if not pausestatus and mixer.music.get_busy():
-            current_time = mixer.music.get_pos() / 1000 if self.timeSlider.get() == 0 else self.timeSlider.get()
+            self.current_time = mixer.music.get_pos() / 1000
+            # get the current time of the song of time silder after playing the song
+            if not playstatus and int(self.timeSlider.get()) != 0:
+                self.current_time = int(self.timeSlider.get())
             #duration and current time convert to MM:SS
-            self.timeSlider.set(int(current_time if self.timeSlider.get() == 0 else self.timeSlider.get()+1))
-            self.current_time_convert = time.strftime("%M:%S", time.gmtime(int(current_time if self.timeSlider.get() == current_time else self.timeSlider.get())))
+            self.song_length_convert = time.strftime("%M:%S", time.gmtime(song_length))
+            self.musicdurationLabel.configure(text = self.song_length_convert)
+            
+            if int(self.timeSlider.get()) == int(self.current_time):
+                self.timeSlider.set(int(self.current_time))
+                self.current_time_convert = time.strftime("%M:%S", time.gmtime(int(self.current_time)))
+            else:
+                self.timeSlider.set(self.timeSlider.get()+1)
+            
+            self.current_time_convert = time.strftime("%M:%S", time.gmtime(int(self.timeSlider.get())))
+            
             self.musiccurrenttimeLabel.configure(text = self.current_time_convert)
 
             upnexttime = time.strftime("%M:%S", time.gmtime(song_length - self.timeSlider.get()))
@@ -715,8 +746,8 @@ class GUI():
 
         global informationstatus
 
-        self.lyricsframedestroy() if lyricsstatus else None
-        self.queuedestroy() if queueshowstatus else None
+        if lyricsstatus:
+            self.lyricsframedestroy()
 
         if not informationstatus:
             self.moreinforamtinButton.configure(image=moreinforamtionenabledImage, command = self.informationframedestroy)
@@ -724,7 +755,6 @@ class GUI():
             self.taglist = []
             infolist = ["Title", "Artist", "Album", "Album Artist", "#Track", "Duration", "Genere", "Year", "Bitrate"]
             fontinfo = CTkFont(family="arial", size = 35)
-            self.tracks = [TinyTag.get(song) for song in self.songs]
             for i in range(len(infolist)):
                 
                 maintaglist = [self.tracks[index].title, self.tracks[index].artist, self.tracks[index].album, self.tracks[index].albumartist, self.tracks[index].track, self.song_length_convert, self.tracks[index].genre, self.tracks[index].year, self.tracks[index].bitrate]
@@ -757,8 +787,8 @@ class GUI():
 
         global lyricsstatus, getlyricsstatus
 
-        self.informationframedestroy() if informationstatus else None
-        self.queuedestroy() if queueshowstatus else None
+        if informationstatus:
+            self.informationframedestroy()
             
         if not lyricsstatus:
             lyricsstatus = True
@@ -798,34 +828,33 @@ if __name__ == "__main__":
 
     window = CTk()
     window.configure(fg_color = "#000000")
-    window.iconbitmap("C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\LOGO.ico")
-    
-    playImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\PLAY.png")
-    muteImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\MUTE.png")
-    volumeupImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\VOLUMEUP.png")
-    volumedownImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\VOLUMEDOWN.png")
-    lyricsDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\LYRICSDISABLE.png")
-    lyricsEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\LYRICSENABLE.png")
-    newfoolderDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\NEWFOOLDERDISABLE.png")
-    newfoolderEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\NEWFOOLDERENABLE.png")
-    sortDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SORTDISABLE.png")
-    sortEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SORTENABLE.png")
-    pauseImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\PAUSE.png")
-    loopDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\LOOPDISABLE.png")
-    loopEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\LOOPENABLE.png")
-    shuffleDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SHUFFLEDISABLE.png") 
-    shuffleEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SHUFFLEENABLE.png") 
-    nextImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\NEXT.png")
-    beforImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\BEFORE.png")
-    skipforwardImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SKIPFORWARD.png")
-    skipbackImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SKIPBACK.png")
-    searchlistDisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SEARCHLISTDISABLE.png")
-    searchlistEnableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\SEARCHLISTENABLE.png")
-    defultcoverImage = PhotoImage(file  = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\DEFULTMUSICCOVER.png")
-    moreinforamtiondisabledImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\MOREINFORMATIONDISABLE.png")
-    moreinforamtionenabledImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\MOREINFORMATIONENABLE.png")
-    queuedisableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\QUEUEDISABLE.png")
-    queueenableImage = PhotoImage(file = "C:\\Users\\aryan\\OneDrive\\Desktop\\project\\music player\\image\\QUEUEENABLE.png")
+
+    playImage = PhotoImage(file = "image\\PLAY.png")
+    muteImage = PhotoImage(file = "image\\MUTE.png")
+    volumeupImage = PhotoImage(file = "image\\VOLUMEUP.png")
+    volumedownImage = PhotoImage(file = "image\\VOLUMEDOWN.png")
+    lyricsDisableImage = PhotoImage(file = "image\\LYRICSDISABLE.png")
+    lyricsEnableImage = PhotoImage(file = "image\\LYRICSENABLE.png")
+    newfoolderDisableImage = PhotoImage(file = "image\\NEWFOOLDERDISABLE.png")
+    newfoolderEnableImage = PhotoImage(file = "image\\NEWFOOLDERENABLE.png")
+    sortDisableImage = PhotoImage(file = "image\\SORTDISABLE.png")
+    sortEnableImage = PhotoImage(file = "image\\SORTENABLE.png")
+    pauseImage = PhotoImage(file = "image\\PAUSE.png")
+    loopDisableImage = PhotoImage(file = "image\\LOOPDISABLE.png")
+    loopEnableImage = PhotoImage(file = "image\\LOOPENABLE.png")
+    shuffleDisableImage = PhotoImage(file = "image\\SHUFFLEDISABLE.png") 
+    shuffleEnableImage = PhotoImage(file = "image\\SHUFFLEENABLE.png") 
+    nextImage = PhotoImage(file = "image\\NEXT.png")
+    beforImage = PhotoImage(file = "image\\BEFORE.png")
+    skipforwardImage = PhotoImage(file = "image\\SKIPFORWARD.png")
+    skipbackImage = PhotoImage(file = "image\\SKIPBACK.png")
+    searchlistDisableImage = PhotoImage(file = "image\\SEARCHLISTDISABLE.png")
+    searchlistEnableImage = PhotoImage(file = "image\\SEARCHLISTENABLE.png")
+    defultcoverImage = PhotoImage(file  = "image\\DEFULTMUSICCOVER.png")
+    moreinforamtiondisabledImage = PhotoImage(file = "image\\MOREINFORMATIONDISABLE.png")
+    moreinforamtionenabledImage = PhotoImage(file = "image\\MOREINFORMATIONENABLE.png")
+    queuedisableImage = PhotoImage(file = "image\\QUEUEDISABLE.png")
+    queueenableImage = PhotoImage(file = "image\\QUEUEENABLE.png")
 
     sortbyArtiststatus = True
     sortbyAlbumstatus = False
@@ -849,7 +878,6 @@ if __name__ == "__main__":
     volumeset = 10
     randomtrackselected = []
     queuetracks = []
-    queuebuttonslit = []
     lastshuffleindex = -2
 
     window.columnconfigure(0, weight=1)
